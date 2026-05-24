@@ -50,13 +50,47 @@ def validate_datetime(value: Any) -> datetime | None:
     return None
 
 
-def normalize_is_correct(value: Any, attempt_type: str) -> bool | None:
+def validate_passback(
+    passback: dict[str, Any] | None,
+) -> tuple[tuple[str, str, str] | None, str | None]:
+    if passback is None:
+        return None, "не удалось разобрать passback_params"
+
+    for field in REQUIRED_PASSBACK_FIELDS:
+        if field not in passback:
+            return None, f"отсутствует поле {field} в passback_params"
+
+    oauth_consumer_key = passback.get("oauth_consumer_key")
+    lis_result_sourcedid = passback.get("lis_result_sourcedid")
+    lis_outcome_service_url = passback.get("lis_outcome_service_url")
+
+    if not isinstance(oauth_consumer_key, str):
+        return None, "oauth_consumer_key имеет неверный тип"
+
+    if not isinstance(lis_result_sourcedid, str) or not lis_result_sourcedid.strip():
+        return None, "некорректный lis_result_sourcedid"
+
+    if (
+        not isinstance(lis_outcome_service_url, str)
+        or not lis_outcome_service_url.strip()
+        or not is_valid_url(lis_outcome_service_url)
+    ):
+        return None, "некорректный lis_outcome_service_url"
+
+    return (oauth_consumer_key, lis_result_sourcedid, lis_outcome_service_url), None
+
+
+def validate_is_correct(
+    value: Any, attempt_type: str
+) -> tuple[bool | None, str | None]:
     if attempt_type == "run":
-        return None
+        if value is not None:
+            return None, "для run is_correct должен быть null"
+        return None, None
+
+    if value not in (0, 1, True, False):
+        return None, "для submit is_correct должен быть 0 или 1"
 
     if value in (0, False):
-        return False
-    if value in (1, True):
-        return True
-
-    return None
+        return False, None
+    return True, None
