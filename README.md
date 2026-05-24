@@ -14,7 +14,7 @@
 2. **Обрабатывать и валидировать** ответ
 3. **Сохранять** очищенные данные в локальную **PostgreSQL**
 4. **Логировать** весь процесс с отловом ошибок
-5. *(дополнительно)* визуализировать данные в **Dash-дашборде**
+5. **Визуализировать данные в Dash-дашборде**
 
 ## Что делает скрипт `main.py`
 
@@ -87,60 +87,155 @@ python/
     └── data.py          # SQL-запросы для графиков
 ```
 
-## Запуск
+## Запуск 
 
-### Окружение
+Клонировали репозиторий с GitHub и запускаете с нуля.
+
+### Что должно быть установлено
+
+| Программа | Зачем |
+|-----------|--------|
+| **Python 3.10+** | скрипт и дашборд |
+| **PostgreSQL 14+** | локальная база |
+| **Git** | скачать проект |
+
+Проверка в терминале:
 
 ```bash
-cd /Users/ivanmerkulov/Desktop/python
+python3 --version
+psql --version
+git --version
+```
+
+На macOS PostgreSQL часто ставят через Homebrew: `brew install postgresql@14`, затем `brew services start postgresql@14`.
+
+### 1. Скачать проект
+
+```bash
+git clone https://github.com/ВАШ_ЛОГИН/ВАШ_РЕПОЗИТОРИЙ.git
+cd ВАШ_РЕПОЗИТОРИЙ
+```
+
+Подставьте свой URL репозитория с GitHub.
+
+### 2. Виртуальное окружение и зависимости
+
+```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### База данных и секреты
+### 3. База данных PostgreSQL
+
+Убедитесь, что сервер запущен (`pg_isready`).
+
+Создайте базу (один раз):
 
 ```bash
-createdb grader_db   # если ещё не создана
-cp .env.example .env # если файла .env ещё нет
+createdb grader_db
 ```
 
-Отредактируйте `.env` — ключ API и параметры PostgreSQL:
+Если `createdb` пишет «already exists» — это нормально, база уже есть.
+
+### 4. Файл настроек `.env`
+
+В репозитории есть только шаблон `.env.example` — секреты в git не попадают.
+
+```bash
+cp .env.example .env
+```
+
+Откройте `.env` и укажите свои значения:
 
 ```env
 API_CLIENT_KEY=M2MGWS
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=grader_db
 DB_USER=postgres
 DB_PASSWORD=postgres
 ```
 
-Файл `.env` в `.gitignore` и не попадает в репозиторий.
+На Mac часто пользователь БД совпадает с именем учётной записи системы (без пароля), например:
 
-### Загрузка данных
+```env
+DB_USER=ivanmerkulov
+DB_PASSWORD=
+```
+
+Проверка подключения:
 
 ```bash
+psql -h localhost -d grader_db -c "SELECT 1;"
+```
+
+### 5. Загрузка данных из API в PostgreSQL
+
+```bash
+source .venv/bin/activate
 python main.py
 ```
 
-С параметрами периода:
+Полный период по умолчанию (апрель–май 2023) качается **долго** (несколько минут). Для быстрой проверки:
 
 ```bash
-python main.py --start "2023-04-01 12:46:47.860798" --end "2023-05-31 23:59:59.999999"
+python main.py --start "2023-05-31 00:00:00.000000" --end "2023-05-31 01:00:00.000000"
 ```
 
-### Дашборд
+Лог пишется в `logs/YYYY-MM-DD.log`.
+
+### 6. Dash-дашборд
+
+Нужны уже загруженные данные в `grader_db`.
 
 ```bash
+source .venv/bin/activate
 python -m dashboard.app
 ```
 
-Открыть в браузере: http://127.0.0.1:8050
+В браузере: **http://127.0.0.1:8050**
 
-## Результат
 
-После успешного запуска `main.py` в базе `grader_db` хранятся сотни тысяч записей о попытках студентов — их можно анализировать SQL-запросами или через Dash.
-
-Пример проверки:
+Если порт занят:
 
 ```bash
+kill $(lsof -t -i:8050)
+# или другой порт:
+DASH_PORT=8051 python -m dashboard.app
+```
+
+### 7. Проверка данных в БД
+
+```bash
+psql -d grader_db -c "SELECT COUNT(*) FROM grader_statistics;"
 psql -d grader_db -c "SELECT attempt_type, COUNT(*) FROM grader_statistics GROUP BY attempt_type;"
+```
+
+### Частые проблемы
+
+| Симптом | Решение |
+|---------|---------|
+| `API_CLIENT_KEY не задан` | Создайте `.env` из `.env.example` |
+| `connection refused` (PostgreSQL) | Запустите сервер: `brew services start postgresql@14` |
+| `role "postgres" does not exist` | Укажите в `.env` своего пользователя (`whoami`) |
+| `Port 8050 is in use` | Закройте старый Dash или смените `DASH_PORT` |
+| Долго висит на «Скачивание из API» | Подождите или сузьте период `--start` / `--end` |
+
+### Что не переносится через Git
+
+Не клонируются (нужно создать локально):
+
+- `.env` — скопировать из `.env.example`
+- `.venv/` — создать заново (`python3 -m venv .venv`)
+- `logs/` — появятся после запуска `main.py`
+- данные в PostgreSQL — при необходимости снова выполнить `python main.py`
+
+## Запуск (кратко, если проект уже настроен)
+
+```bash
+source .venv/bin/activate
+python main.py
+python -m dashboard.app
 ```
