@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from urllib.parse import quote_plus
 
+import psycopg2
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
@@ -43,3 +44,30 @@ def validate_config() -> None:
         raise ValueError(
             "API_CLIENT_KEY не задан. Скопируйте .env.example в .env и заполните значения."
         )
+
+
+def validate_db_config() -> None:
+    missing = [
+        name
+        for name, value in {
+            "DB_HOST": DB_HOST,
+            "DB_PORT": DB_PORT,
+            "DB_NAME": DB_NAME,
+            "DB_USER": DB_USER,
+        }.items()
+        if not str(value).strip()
+    ]
+    if missing:
+        raise ValueError(
+            f"Не заданы параметры подключения к БД: {', '.join(missing)}. "
+            "Проверьте файл .env."
+        )
+
+    try:
+        connection = psycopg2.connect(**get_db_config())
+        connection.close()
+    except psycopg2.Error as exc:
+        raise ValueError(
+            "Не удалось подключиться к PostgreSQL. "
+            f"Проверьте DB_HOST, DB_PORT, DB_NAME, DB_USER и DB_PASSWORD. Ошибка: {exc}"
+        ) from exc

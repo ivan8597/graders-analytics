@@ -38,7 +38,11 @@ def main() -> None:
         raw_records = fetch_statistics(args.start, args.end)
         processed_records = transform_records(raw_records)
         db_config = get_db_config()
-        load_to_database(processed_records, db_config)
+        load_to_database(
+            processed_records,
+            db_config,
+            source_count=len(raw_records),
+        )
     except Exception as exc:
         logger.exception("Скрипт завершился с ошибкой: %s", exc)
         raise

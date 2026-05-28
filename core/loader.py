@@ -19,16 +19,29 @@ def init_database(connection: psycopg2.extensions.connection) -> None:
     connection.commit()
 
 
-def load_to_database(records: list[dict[str, Any]], db_config: dict[str, str]) -> None:
+def load_to_database(
+    records: list[dict[str, Any]],
+    db_config: dict[str, str],
+    *,
+    source_count: int | None = None,
+) -> None:
     logger = logging.getLogger("database")
     logger.info("Заполнение базы данных началось")
     started_at = time.perf_counter()
+    skipped = (source_count - len(records)) if source_count is not None else None
 
     if not records:
         logger.info("Нет данных для загрузки в базу")
+        if source_count is not None:
+            logger.info(
+                "Итог загрузки: получено из API=%s, загружено=0, пропущено при валидации=%s",
+                source_count,
+                skipped,
+            )
         return
 
     connection = None
+    inserted = 0
     try:
         connection = psycopg2.connect(**db_config)
         init_database(connection)
@@ -61,15 +74,36 @@ def load_to_database(records: list[dict[str, Any]], db_config: dict[str, str]) -
         with connection.cursor() as cursor:
             execute_values(cursor, insert_query, values)
         connection.commit()
+        inserted = len(records)
 
         elapsed = time.perf_counter() - started_at
         logger.info(
             "Заполнение базы данных завершилось за %.2f сек. Загружено записей: %s",
             elapsed,
-            len(records),
+            inserted,
         )
+        if source_count is not None:
+            logger.info(
+                "Итог загрузки: получено из API=%s, загружено=%s, "
+                "пропущено при валидации=%s, ошибок вставки=0",
+                source_count,
+                inserted,
+                skipped,
+            )
     except psycopg2.Error as exc:
         logger.error("Ошибка при работе с PostgreSQL: %s", exc)
+        logger.error(
+            "Откат транзакции. Не загружено записей: %s",
+            len(records),
+        )
+        if source_count is not None:
+            logger.error(
+                "Итог загрузки: получено из API=%s, загружено=0, "
+                "пропущено при валидации=%s, ошибок вставки=%s",
+                source_count,
+                skipped,
+                len(records),
+            )
         if connection is not None:
             connection.rollback()
         raise

@@ -53,6 +53,36 @@ API (itresume)  →  обработка и валидация  →  PostgreSQL
 Таблица `grader_statistics` создаётся автоматически из `sql/create_table.sql`.  
 Вставка пакетная через `psycopg2.extras.execute_values`.
 
+**Схема таблицы:**
+
+| Колонка | Тип | Описание |
+|---------|-----|----------|
+| `id` | `SERIAL` | Первичный ключ |
+| `user_id` | `VARCHAR(64)` | ID студента (`lti_user_id`) |
+| `oauth_consumer_key` | `VARCHAR(255)` | Ключ LTI-потребителя |
+| `lis_result_sourcedid` | `TEXT` | Идентификатор результата в LMS |
+| `lis_outcome_service_url` | `TEXT` | URL сервиса оценок |
+| `is_correct` | `BOOLEAN` | `NULL` для run, `TRUE`/`FALSE` для submit |
+| `attempt_type` | `VARCHAR(16)` | `run` или `submit` |
+| `created_at` | `TIMESTAMP` | Время попытки (UTC) |
+
+Индексы: `user_id`, `created_at`.
+
+Пример DDL (полный файл — `sql/create_table.sql`):
+
+```sql
+CREATE TABLE IF NOT EXISTS grader_statistics (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL,
+    oauth_consumer_key VARCHAR(255),
+    lis_result_sourcedid TEXT NOT NULL,
+    lis_outcome_service_url TEXT NOT NULL,
+    is_correct BOOLEAN,
+    attempt_type VARCHAR(16) NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+```
+
 ### 4. Логирование
 
 - Библиотека `logging`
